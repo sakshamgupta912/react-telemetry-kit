@@ -26,9 +26,6 @@ Other versions require compatibility testing.
 
 ## Installation
 
-The package is currently private and unpublished. It can be installed directly
-from the GitHub repository owned by `sakshamgupta912`:
-
 ```powershell
 npm install github:sakshamgupta912/react-telemetry-kit
 ```
