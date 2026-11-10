@@ -24,6 +24,19 @@ The package's development checks use TypeScript 5.9, React 18, and
 Application Insights Web 3.4. The Power Apps pilot also validated React 19.
 Other versions require compatibility testing.
 
+## License
+
+This project is released under the [MIT License](LICENSE).
+
+## Continuous integration and releases
+
+GitHub Actions runs `npm ci`, the full `npm run check` gate, and package-content
+inspection for pushes and pull requests targeting `main` on Node.js 20 and 22.
+
+Creating a version tag such as `v0.1.0` runs the same checks, packs the package,
+and creates a GitHub Release containing the `.tgz` artifact. The package is
+currently distributed from GitHub; npm registry publishing is not configured.
+
 ## Installation
 
 ```powershell

@@ -1,6 +1,10 @@
 |-- .bevel
     |-- do_not_share
         |-- port
+|-- .github
+    |-- workflows
+        |-- ci.yml
+        |-- release.yml
 |-- .gitignore
 |-- CHECKLIST.md
 |-- eslint.config.mjs
@@ -17,6 +21,7 @@
         |-- tsconfig.json
         |-- verify-build.mjs
         |-- vite.config.js
+|-- LICENSE
 |-- package-lock.json
 |-- package.json
 |-- PLAN.md

@@ -21,6 +21,9 @@ The public GitHub repository is
 `https://github.com/sakshamgupta912/react-telemetry-kit`. The local installable
 artifact is `react-telemetry-kit-0.1.0.tgz` in the project root. The package
 remains `private: true`; no npm registry publication has occurred.
+The repository is licensed under MIT. GitHub Actions validates Node 20 and 22
+on pushes and pull requests and creates GitHub Releases with packed `.tgz`
+artifacts for version tags.
 
 ## Confirmed decisions
 
@@ -38,6 +41,7 @@ remains `private: true`; no npm registry publication has occurred.
 | Build the standalone asset with tests after each piece. | User requested, 2026-11-09. |
 | Mpower cannot be modified; use the comment-thread code app for the next local pilot. | User restriction and integration approval, 2026-11-09. |
 | Azure pilot uses a locally ignored connection string; never store it in tracked files or project memory. | User supplied the connection string, 2026-11-10. |
+| The public source repository uses the MIT license; npm publication remains disabled. | User approved MIT and requested GitHub CI/CD, 2026-11-10. |
 
 ## Package contract
 

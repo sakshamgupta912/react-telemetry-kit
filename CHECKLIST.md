@@ -117,6 +117,8 @@ deployed-host/CSP gate.
 Release validation depends on Phases 3, 4, and 5. Registry/ownership decisions
 may be made earlier.
 
+- [x] Add the MIT license and GitHub repository metadata.
+- [x] Add GitHub Actions CI and tag-triggered GitHub release automation.
 - [ ] Decide private/internal versus public distribution.
 - [ ] Confirm available package name/scope, owner, and registry.
 - [ ] Confirm source reuse rights, licensing, and dependency obligations.
@@ -162,6 +164,7 @@ acceptance remain outstanding.
 | 2026-11-10 | Azure code-app pilot | Final lint/build/full tests; signed-in Local Play; read-only Application Insights query | Lint and build passed; all 45 tests passed. SDK initialized and named preview traces appeared. Dark theme was toggled on and restored off. Browser blocked requests to the Application Insights ingestion endpoint and OneCollector with `ERR_BLOCKED_BY_CLIENT`; the read-only query returned no traces. No post/delete/sample-data actions. Local server stopped afterward. |
 | 2026-11-10 | Azure ingestion retry | Removed browser ad blocker; read-only Application Insights `traces` query | 56 `function-trace` rows observed: 28 start, 28 end, 28 duration values, and 6 parameter-bearing rows. Parameter capture was disabled again after confirming that raw identity data could be exported. |
 | 2026-11-10 | Safe policy consumer refresh | Reinstalled packed archive; focused telemetry tests; production build; authenticated Local Play; read-only Application Insights query | App tests passed (14/14 focused), lint/build passed, the canvas rendered, and Azure returned 52 recent function-trace rows. Four parameter-bearing rows contained only `context: 21`; no identity/comment values appeared. Local switch was disabled after the test. |
+| 2026-11-10 | Repository release setup | Public GitHub repository, MIT license, GitHub Actions CI, and tag-triggered release workflow | Repository published under `sakshamgupta912/react-telemetry-kit`; CI runs Node 20/22 checks and tagged releases attach the `.tgz` artifact. npm registry publishing remains disabled. |
 
 Tested local versions: Node 26.13.0, React/React DOM 18.3.1, Vite 7.3.7,
 TypeScript 5.9.3, Application Insights Web 3.4.6. Declared compatibility ranges
