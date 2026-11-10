@@ -34,8 +34,8 @@ npm install github:sakshamgupta912/react-telemetry-kit
 ```
 
 The repository's `prepare` script builds the package after Git installation.
-The repository must exist and be accessible to the consumer. Until it is
-pushed to GitHub, use the local archive workflow below.
+The repository must be accessible to the consumer. Use the local archive
+workflow below when developing the package from a local checkout.
 
 Build and pack the local archive:
 

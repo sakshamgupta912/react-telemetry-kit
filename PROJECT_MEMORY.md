@@ -17,8 +17,10 @@ integration built and validated, including an independent consumer and a React
 Play tracing and Azure ingestion are verified. Mpower remains unchanged. No
 publication or deployment has occurred.
 
-Local installable artifact: `react-telemetry-kit-0.1.0.tgz` in the project root.
-The package remains `private: true`. No registry publication has occurred.
+The public GitHub repository is
+`https://github.com/sakshamgupta912/react-telemetry-kit`. The local installable
+artifact is `react-telemetry-kit-0.1.0.tgz` in the project root. The package
+remains `private: true`; no npm registry publication has occurred.
 
 ## Confirmed decisions
 
