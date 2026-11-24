@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- The `vite` peer dependency is now `^4.0.0 || ^5.0.0 || ^6.0.0 || ^7.0.0 ||
+  ^8.0.0`, so apps on Vite 4, 5, and 6 can install the package. The previous
+  `^7.0.0 || ^8.0.0` range made `npm install` fail with `ERESOLVE` there. The
+  plugin code did not change: it uses only the long-stable `enforce`,
+  `configResolved`, and `transform` hooks.
+- The Node engine range is now `^18.0.0 || ^20.0.0 || >=22.0.0` (it was
+  `^20.19.0 || >=22.12.0`, which came from Vite 7). Vite 7 and 8 still need Node
+  20.19 or later in your project.
+
+### Added
+
+- `npm run check:vite-compat`, run in CI. It installs the packed package into a
+  fresh project for every Vite major in the peer range with no peer overrides,
+  then checks a production build and the executed bundle, the dev-server
+  transform, and a type-check of `vite.config.ts`. It can run the build and dev
+  server under another Node (`--node`), which CI uses for Node 18.
+- The plugin tests now run on Vite 4, 5, 6, 7, and 8, and a test fails if the
+  peer range declares a Vite major that is not tested.
+
 ## 0.2.0 - 2026-11-24
 
 This release adds opt-in browser telemetry and function failure outcomes, and

@@ -40,3 +40,26 @@ jobs:
 
       - name: Inspect package contents
         run: npm pack --dry-run
+
+  vite-compat:
+    name: Vite compatibility
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install into a fresh project for every Vite major
+        run: npm run check:vite-compat
+
+      - name: Build and serve under Node 18 (Vite 4 to 6)
+        run: node scripts/check-vite-compat.mjs --node "npx -y -p node@18 node" --majors 4,5,6

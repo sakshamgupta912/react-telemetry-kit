@@ -278,10 +278,18 @@ Dataverse create/delete was performed.
   events therefore capture the page-view ID when the request starts.
 - Fresh-install lesson (2026-11-24): `create-vite@latest` now scaffolds Vite 8,
   React 19, and TypeScript 7, so the old `vite ^7.0.0` peer made installs fail
-  with `ERESOLVE`. The peer is `^7.0.0 || ^8.0.0`, and `vite8` (an npm alias to
-  Vite 8) is a dev dependency so tests exercise both. Re-check the scaffold's
-  Vite major whenever it changes; a fresh-app install is the quickest compat
-  test.
+  with `ERESOLVE`. A real app on Vite 6.4 then hit the same error. The plugin
+  only uses `enforce`, `configResolved`, and `transform`, so the fix was the
+  range, not code: the peer is `^4 || ^5 || ^6 || ^7 || ^8`, and `vite4`,
+  `vite5`, `vite6`, and `vite8` (npm aliases) are dev dependencies so the plugin
+  tests exercise every major. Unit tests with aliased Vite cannot catch a wrong
+  peer range; `npm run check:vite-compat` can, because it installs the packed
+  package into a fresh project with no overrides. Gotchas: use `realpath.native`
+  for temp roots on Windows (8.3 short names such as `SAKSHA~1` break the dev
+  server's file checks in Vite 6 and later), and run a build and a dev server in
+  separate processes (a build sets `NODE_ENV=production`). Vite 3.2 also worked
+  in a manual run but is not declared or tested. Re-check the scaffold's Vite
+  major whenever it changes; a fresh-app install is the quickest compat test.
 - Still open: real Safari (macOS/iOS) and mobile browsers; delivery to a real
   telemetry backend with a non-production connection string; agreed
   performance and bundle budgets.

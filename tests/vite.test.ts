@@ -1,15 +1,25 @@
-import { mkdtemp, mkdir, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
 import { build as build7, createServer as createServer7, version as vite7Version } from "vite";
+import { build as build4, createServer as createServer4, version as vite4Version } from "vite4";
+import { build as build5, createServer as createServer5, version as vite5Version } from "vite5";
+import { build as build6, createServer as createServer6, version as vite6Version } from "vite6";
 import { build as build8, createServer as createServer8, version as vite8Version } from "vite8";
 import { describe, expect, it } from "vitest";
 import { functionTracing, type FunctionTracingPluginOptions } from "../src/vite.js";
 
-type CreateServer = typeof createServer7 | typeof createServer8;
-type ViteServer = Awaited<ReturnType<typeof createServer7>>;
+// Each Vite release ships its own type definitions, so the tests talk to all of them through the
+// small part of the API they use.
+interface DevServer {
+  transformRequest(url: string): Promise<{ code: string } | null>;
+  close(): Promise<void>;
+}
+type CreateServer = (config: Record<string, unknown>) => Promise<DevServer>;
+type Build = (config: Record<string, unknown>) => Promise<unknown>;
+type ViteServer = DevServer;
 
 const runtimeAlias = {
   "react-telemetry-kit/runtime": fileURLToPath(new URL("../src/runtime.ts", import.meta.url)),
@@ -53,7 +63,7 @@ async function withVite(
         },
       });
       try {
-        await check(server as ViteServer);
+        await check(server);
       } finally {
         await server.close();
       }
@@ -61,15 +71,26 @@ async function withVite(
   );
 }
 
-const versions = [
-  ["Vite 7", createServer7, build7],
-  ["Vite 8", createServer8, build8],
-] as const;
+const versions: ReadonlyArray<readonly [name: string, createServer: CreateServer, build: Build]> = [
+  ["Vite 4", createServer4 as unknown as CreateServer, build4 as unknown as Build],
+  ["Vite 5", createServer5 as unknown as CreateServer, build5 as unknown as Build],
+  ["Vite 6", createServer6 as unknown as CreateServer, build6 as unknown as Build],
+  ["Vite 7", createServer7 as unknown as CreateServer, build7 as unknown as Build],
+  ["Vite 8", createServer8 as unknown as CreateServer, build8 as unknown as Build],
+];
 
 describe("Vite versions under test", () => {
-  it("covers one Vite 7 and one Vite 8 release", () => {
-    expect(vite7Version).toMatch(/^7\./);
-    expect(vite8Version).toMatch(/^8\./);
+  it("covers one release of each Vite major from 4 to 8", () => {
+    const installed = [vite4Version, vite5Version, vite6Version, vite7Version, vite8Version];
+    expect(installed.map((version) => version.split(".")[0])).toEqual(["4", "5", "6", "7", "8"]);
+  });
+
+  it("declares exactly the Vite majors that are tested", async () => {
+    const manifest = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8")) as {
+      peerDependencies: { vite: string };
+    };
+    const declared = [...manifest.peerDependencies.vite.matchAll(/\^(\d+)\./g)].map((match) => match[1]);
+    expect(declared).toEqual(versions.map(([name]) => name.replace("Vite ", "")));
   });
 });
 

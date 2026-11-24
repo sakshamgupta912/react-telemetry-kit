@@ -14,9 +14,12 @@ validation remain pending.
 
 ## Requirements
 
-- Vite 7 or 8 (the build-time function tracing plugin). The repository's tests
-  build and run instrumented code with Vite 7.3 and Vite 8.3.
-- Node.js `^20.19.0 || >=22.12.0`
+- Vite 4, 5, 6, 7, or 8 (the build-time function tracing plugin). Each major is
+  tested: the plugin tests build and run instrumented code on all five, and
+  `npm run check:vite-compat` installs the packed package into a fresh project
+  for each one with no peer overrides, then builds, serves, and type-checks it.
+- Node.js `^18.0.0 || ^20.0.0 || >=22.0.0`. Vite 7 and 8 themselves need Node
+  20.19 or later, and that applies to your project, not to this package.
 - A browser application using `.js`, `.jsx`, `.ts`, or `.tsx`
 - React is expected for the primary use case, but the runtime is independent
   of React. The browser collectors (`react-telemetry-kit/browser`) do not need
@@ -483,6 +486,13 @@ earlier run measured +0.004. The parameters row varies by about 0.1 between runs
 `npm run check` runs type-check, lint, tests, and build. `npm pack` rebuilds the
 library before creating the local archive. `npm run benchmark` measures generated
 wrappers with a no-op sink; it is not a browser or ingestion performance budget.
+
+`npm run check:vite-compat` packs the library and, for every Vite major in the
+peer range, installs it into a fresh project with a plain `npm install` (so a
+wrong peer range fails with `ERESOLVE`). It then runs a production build and the
+bundle, the dev-server transform, and a type-check of `vite.config.ts`. Add
+`--node "npx -y -p node@18 node" --majors 4,5,6` to run the build and dev server
+under Node 18. CI runs both.
 
 The independent consumer is in `fixtures\react-vite`. After packing the library,
 run `npm install`, `npm run build`, and `npm run verify:build` in that folder.
