@@ -1,6 +1,6 @@
 # React Telemetry Kit - Project Memory
 
-Last updated: 2026-11-10
+Last updated: 2026-11-24
 
 This is project-local memory, not a global preference or an automatically loaded
 assistant memory. At the start of future work, read this file, `PLAN.md`, and
@@ -11,15 +11,18 @@ assistant memory. At the start of future work, read this file, `PLAN.md`, and
 Create a reusable installable function-tracing asset based on Mpower's existing
 compile-time instrumentation.
 
-Current state: standalone runtime, Vite transformer, and Application Insights
-integration built and validated, including an independent consumer and a React
-19 Power Apps code-app pilot installed from the archive. Authenticated Local
-Play tracing and Azure ingestion are verified. Mpower remains unchanged. No
-publication or deployment has occurred.
+Current state: standalone runtime, Vite transformer, and opt-in browser
+telemetry built and validated, including an independent consumer and a React
+19 Power Apps code-app pilot installed from the archive. The package ships no
+vendor adapter; the code-app pilot owns its own Application Insights sink.
+Authenticated Local Play tracing and Azure ingestion are verified through that
+app-owned sink. Mpower remains unchanged. No publication or deployment has
+occurred.
 
 The public GitHub repository is
 `https://github.com/sakshamgupta912/react-telemetry-kit`. The local installable
-artifact is `react-telemetry-kit-0.1.0.tgz` in the project root. The package
+artifact is `react-telemetry-kit-0.2.0.tgz` in the project root (the earlier
+`0.1.0` archive name was overwritten by repacks during the 0.2.0 work). The package
 remains `private: true`; no npm registry publication has occurred.
 The repository is licensed under MIT. GitHub Actions validates Node 20 and 22
 on pushes and pull requests and creates GitHub Releases with packed `.tgz`
@@ -30,7 +33,8 @@ artifacts for version tags.
 | Decision | Status/source |
 | --- | --- |
 | Folder/project name is `react-telemetry-kit`. | User selected, 2026-11-09. |
-| Version 1 covers function tracing plus optional Application Insights initialization. | User confirmed, 2026-11-09. |
+| Version 1 covers function tracing plus optional Application Insights initialization. | User confirmed, 2026-11-09. **Superseded 2026-11-24:** the package ships no vendor adapter or SDK initialization. |
+| The package ships no vendor adapters; consumers bring their own sink and own the SDK, connection string, delivery, and global context. | User decision, 2026-11-24 ("I don't want to ship any adapter ... The person can bring their own adapter and configure it."). The Application Insights adapter and initializer are removed from `src`, exports, dependencies, and tests. |
 | Initial targets are Vite browser React apps, including Power Pages SPAs and Power Apps code apps. | User confirmed, 2026-11-09. |
 | Distribution will be decided later. | User confirmed, 2026-11-09. |
 | Reuse and generalize the existing project rather than redesign without reference to it. | User request, 2026-11-09. |
@@ -42,26 +46,30 @@ artifacts for version tags.
 | Mpower cannot be modified; use the comment-thread code app for the next local pilot. | User restriction and integration approval, 2026-11-09. |
 | Azure pilot uses a locally ignored connection string; never store it in tracked files or project memory. | User supplied the connection string, 2026-11-10. |
 | The public source repository uses the MIT license; npm publication remains disabled. | User approved MIT and requested GitHub CI/CD, 2026-11-10. |
+| Add opt-in browser telemetry (`/browser`): page views, uncaught errors, API calls, performance/Web Vitals, clicks, a shared event envelope, and function failure outcomes. | User requested implementation, 2026-11-23. Supersedes the earlier "no navigation/session/API telemetry in version 1" guardrail. |
+| Failure outcomes use `catch` and rethrow; returned-promise settlement is not observed. | Observing a returned promise marks it handled and hides real `unhandledrejection` signals. Decided during 2026-11-23 implementation. |
+| No parent/initiator function correlation; correlate with `sessionId`, `pageViewId`, and `sequence`. | Async call chains cannot be reconstructed reliably in a browser. Decided 2026-11-23. |
 
 ## Package contract
 
-- One package with `/vite`, `/runtime`, `/appinsights`, and an optional
-  `/appinsights/initialize` entry point.
-- A generic core with application-owned settings retrieval and optional host
-  adapters, rather than a Power Pages dependency.
+- One package with `/vite`, `/runtime`, and `/browser` entry points. There is
+  no `/appinsights` entry and no vendor SDK dependency or peer dependency.
+- A generic core with application-owned settings retrieval and sinks, rather
+  than a Power Pages dependency.
 - Build and validate an isolated consumer before migrating Mpower.
 - Do not migrate Mpower while it is off-limits; a different approved Power Pages
   app is required for that host pilot.
-- Reuse an existing Application Insights instance where available.
 - Parameter capture requires an allowlist, applies nested-key redaction, avoids
   invoking accessors, and is bounded.
 - Runtime sampling selects function IDs deterministically. Each successful start
   is paired with an end even if configuration changes during the call.
 - Runtime diagnostics report capture/sink failures without breaking app flow;
   sink reentrancy is suppressed.
-- The core runtime is sink-agnostic. Application Insights is the packaged
-  adapter; other backends require a consumer-provided `FunctionTraceSink`
-  adapter.
+- The core is sink-agnostic. Every backend, including Application Insights and
+  OpenTelemetry, is reached through a consumer-provided sink
+  (`FunctionTraceSink` or `TelemetrySink`). The consumer owns SDK setup, the
+  connection string, batching, retry, flush on hide, global context, and
+  excluding its own endpoint and files from capture.
 - `parameterPolicy` supports safe per-function `omit`, `boolean`, `length`, and
   `summary` transformations. Matching policies avoid raw serialization and do
   not evaluate parameter providers for omitted functions. The legacy
@@ -73,13 +81,8 @@ artifacts for version tags.
   generators, direct-eval functions, and `use asm` functions are not wrapped;
   safe nested functions inside excluded bodies can still be wrapped.
 - Build-time plugin exclusion is available for entire builds or selected files.
-- The existing-client adapter does not initialize, flush, or unload the
-  supplied SDK. Optional owned initialization disables unrelated automatic
-  tracking, retries failures, buffers up to 100 traces by default, and exposes
-  `ready`, `flush`, and `dispose`.
 - Custom sinks dispatch synchronously; custom asynchronous work must handle its
-  rejected promises. The Application Insights adapter uses synchronous
-  `trackTrace` dispatch.
+  rejected promises.
 
 ## Implemented structure and repeatable checks
 
@@ -87,11 +90,19 @@ artifacts for version tags.
 - `src\internal\instrument.ts`: source-preserving AST-guided injection and maps.
 - `src\runtime.ts`: runtime configuration, sampling, filtering, and lifecycle.
 - `src\internal\capture-parameters.ts`: allowlisting and bounded redaction.
-- `src\appinsights.ts`: existing-client adapter.
-- `src\appinsights-initialize.ts`: optional package-owned SDK lifecycle.
-- `tests`: 25 tests across runtime, transformation, Vite controls, and SDK adapters.
-- `fixtures\react-vite`: independently installed React/Vite consumer with browser
-  self-checks and real SDK lifecycle page.
+- `src\browser.ts` and `src\internal\collectors\*`: opt-in browser collectors
+  (`errors`, `navigation`, `performance`, `api`, `clicks`) behind
+  `configureBrowserTelemetry()`; each call replaces the prior configuration.
+- `src\internal\events.ts`, `context.ts`, `dispatch.ts`, `sanitize.ts`: shared
+  event types and envelope, session/page-view IDs, the cross-sink reentrancy
+  guard, and URL/error/stack sanitizers.
+- `tests`: 61 tests in 9 files (runtime, transformation, Vite controls,
+  sanitizers, and jsdom browser-collector tests under `tests\browser`). The
+  former App Insights adapter sources and tests are deleted in the working
+  tree (uncommitted) by decision; do not restore them.
+- `fixtures\react-vite`: independently installed React/Vite consumer with
+  browser self-checks and a `browser.html` page that uses a consumer-owned
+  batching sink.
 - `scripts\benchmark.mjs`: preliminary generated-wrapper microbenchmark.
 
 Run `npm run check` at the project root for type-check, lint, all tests, and build.
@@ -233,6 +244,42 @@ approved browser/network that permits the ingestion endpoint; do not disable
 security controls without approval. No provisioning, deployment, or live
 Dataverse create/delete was performed.
 
+## Browser telemetry extensions (2026-11-23)
+
+- Added `react-telemetry-kit/browser` with page views, uncaught errors,
+  API calls (fetch/XHR), page-load timing and Web Vitals, and opt-in clicks.
+  Function traces gained the shared envelope plus `outcome`/`errorType`.
+- Verification (2026-11-23): `npm run check` passed (type-check, lint, build). New DOM tests use `jsdom` (new dev dependency).
+- Follow-up verification (2026-11-24): `npm run check` now runs 61 tests in 9
+  files. `fixtures\react-vite\browser.html` exercises every collector using the
+  packed archive, and a Playwright harness (kept outside the repo, with
+  `playwright-core@1.64.1` matching the cached browsers) ran 98 checks on
+  Chromium 156, Firefox 157, and WebKit 27.2 with zero failures. A stand-in
+  ingestion server on a second origin received batched `fetch` and
+  `sendBeacon` deliveries with no leaked values. Real Safari and a real vendor
+  backend are not verified.
+- Defect found and fixed: LCP/CLS/INP are emitted on page hide, so a sink that
+  flushed on `visibilitychange` and registered first lost them on a tab hide.
+  Collectors now use capture-phase `window` listeners. On navigation away,
+  `pagehide` fires before `visibilitychange` in all three engines, so only the
+  tab-hide path exposed it.
+- Measured: the first envelope implementation doubled the enabled function
+  trace cost; building the literal directly brought it to about 0.48 µs per
+  call against 0.31 before this work. Browser bundle 5.05 kB gzip; runtime
+  3.03 kB gzip (was 2.61). No performance budgets have been agreed.
+- Operational rules learned: exclude telemetry setup and sink files from
+  build-time instrumentation, and exclude the ingestion URL from
+  `apiCalls.excludeUrls`; both otherwise create feedback loops (the second was
+  reproduced at 20 to 23 events per 1.5 seconds). `CLS` exists only in
+  Chromium. History calls are throttled by browsers, so benchmark them with a
+  stub. When benchmarking wrappers, install stubs before configuring.
+- Found during smoke testing: browsers run microtasks between listeners, so an
+  XHR `loadend` listener can run after the app has already navigated. API
+  events therefore capture the page-view ID when the request starts.
+- Still open: real Safari (macOS/iOS) and mobile browsers; delivery to a real
+  telemetry backend with a non-production connection string; agreed
+  performance and bundle budgets.
+
 ## Source evidence and reuse context
 
 Paths are relative to the original repository's
@@ -253,7 +300,7 @@ source inspected during planning and may move.
 ## Existing capabilities
 
 - Source transformation before Vite's normal React processing.
-- Start/end traces delivered through Application Insights.
+- Start/end traces delivered to a consumer-provided sink.
 - Runtime enablement, optional parameters, target-user filtering, function
   inclusion/exclusion, and deterministic function-level sampling.
 - Authenticated settings refresh at five-minute intervals, without background
@@ -282,7 +329,9 @@ approval remain open.
 
 - Do not pull Mpower auth, business dimensions, role mappings, Dataverse schema,
   or React Query dependencies into the generic core.
-- Do not include navigation/session/API/business telemetry in version 1.
+- Browser telemetry stays opt-in and privacy-first: no bodies, headers, input
+  values, visible text, query strings, fragments, or error messages by default.
+  Business-outcome telemetry is still out of scope; use app-level events.
 - Do not silently change application results, thrown exceptions, or promise
   behavior to make tracing convenient.
 - Do not emit user identifiers merely because they are used for targeting.

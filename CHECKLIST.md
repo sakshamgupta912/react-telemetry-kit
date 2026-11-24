@@ -1,6 +1,6 @@
 # React Telemetry Kit - Progress Checklist
 
-Last updated: 2026-11-10
+Last updated: 2026-11-24
 Current phase: Standalone package and React 19 code-app local/authenticated
 preview validated; Azure ingestion and privacy parameter-policy core
 implementation verified; deployed-host pilots and release acceptance remain
@@ -12,7 +12,7 @@ recorded. For blocked work, leave it unchecked and record the blocker below.
 ## Planning baseline
 
 - [x] Select project folder name: `react-telemetry-kit`.
-- [x] Agree on version 1: function tracing plus optional Application Insights initialization.
+- [x] Agree on version 1: function tracing plus optional Application Insights initialization. (Superseded 2026-11-24: no vendor adapters ship; consumers bring their own sink.)
 - [x] Select initial targets: browser React/Vite, Power Pages SPAs, Power Apps code apps.
 - [x] Identify the Mpower source components available for reuse.
 - [x] Record architecture proposal, delivery phases, and verification gates.
@@ -30,7 +30,7 @@ existing source inspected; `PLAN.md` and `PROJECT_MEMORY.md` contain the baselin
 - [x] Define sampling and start/end pairing across runtime configuration changes.
 - [x] Define parameter allowlisting, redaction, limits, and diagnostic behavior.
 - [x] Record the pre-implementation privacy parameter-policy specification.
-- [x] Define Application Insights ownership, queueing, retry, flush, and disposal.
+- [x] Define Application Insights ownership, queueing, retry, flush, and disposal. (Superseded 2026-11-24: owned by the consumer's sink, not the package.)
 - [ ] Select and verify Node, React, Vite, TypeScript, and SDK compatibility ranges.
 - [ ] Agree on measurable performance and bundle-size budgets.
 - [x] Record approved contract decisions in project memory.
@@ -47,10 +47,32 @@ performance budgets remain release gates.
 - [x] Implement disabled-path behavior, filters, and deterministic function sampling.
 - [x] Implement opt-in safe parameter capture.
 - [x] Implement the approved per-function privacy parameter-policy specification.
-- [x] Add the existing-client Application Insights adapter.
-- [x] Add optional package-owned SDK initialization and lifecycle handling.
+- [x] ~~Add the existing-client Application Insights adapter.~~ Removed 2026-11-24 by decision: no adapter ships.
+- [x] ~~Add optional package-owned SDK initialization and lifecycle handling.~~ Removed 2026-11-24 by decision.
 - [x] Add focused transformation, runtime, and SDK integration tests.
 - [x] Run type-check, lint, tests, and package build; record results.
+
+## Phase 2b - Browser telemetry extensions
+
+Requested 2026-11-23. Opt-in collectors behind `react-telemetry-kit/browser`.
+
+- [x] Add a shared event envelope (`timestamp`, `sessionId`, `pageViewId`, `sequence`, `sdkVersion`) and `TelemetryEvent` union.
+- [x] Record function failure outcome (`threw`/`returned`, `errorType`) and rethrow the original value.
+- [x] Capture uncaught errors and unhandled rejections without messages.
+- [x] Capture page views and SPA navigation using path only.
+- [x] Capture navigation timing and Core Web Vitals.
+- [x] Capture fetch/XHR calls without bodies, headers, or query strings.
+- [x] Capture clicks on opted-in elements with validated identifiers.
+- [x] Add per-session sampling, an error-event cap, and cross-sink reentrancy suppression.
+- [x] Verify in jsdom tests and a headless Edge smoke run against the built `dist`.
+- [x] Exercise the new entry point in `fixtures\react-vite` using the packed archive (`browser.html`; type-check, production build, and `verify:build` pass).
+- [x] Verify every collector in Chromium 156, Firefox 157, and WebKit 27.2 with Playwright 1.64: 98 checks, 0 failures. Web Vitals are emitted only where the entry type exists (`CLS` is Chromium-only).
+- [x] Fix the page-hide ordering hazard found in that run (vitals stranded behind a visibility-only sink); capture-phase listeners plus a regression test.
+- [x] Measure collector overhead (per operation, three engines), function-wrapper A/B against `HEAD`, and bundle size. See README "Measured cost". The disabled path is unchanged.
+- [x] Verify delivery to a local stand-in ingestion server on a separate origin: batched `fetch` (JSON) and `sendBeacon` (text/plain) both arrive, the endpoint exclusion works, and omitting it reproduces the feedback loop.
+- [ ] Verify in Safari on macOS and iOS and on real mobile browsers. WebKit here is Playwright's Windows build.
+- [ ] Verify delivery to a real telemetry backend (for example Application Insights) with a non-production connection string and its CSP/network rules.
+- [ ] Agree on measurable performance and bundle-size budgets (Phase 1) and compare these measurements against them.
 
 ## Phase 3 - Independent consumer
 
@@ -117,6 +139,12 @@ deployed-host/CSP gate.
 Release validation depends on Phases 3, 4, and 5. Registry/ownership decisions
 may be made earlier.
 
+Release process note: bump `package.json` (via `npm version <x> --no-git-tag-version`)
+and `SDK_VERSION` in `src\internal\version.ts` together. A browser test fails if
+they differ. Update `CHANGELOG.md`.
+
+- [x] Prepare 0.2.0: version bump, `CHANGELOG.md` with migration notes, and the `v0.2.0` tag deliberately not created until approved.
+
 - [x] Add the MIT license and GitHub repository metadata.
 - [x] Add GitHub Actions CI and tag-triggered GitHub release automation.
 - [ ] Decide private/internal versus public distribution.
@@ -165,6 +193,11 @@ acceptance remain outstanding.
 | 2026-11-10 | Azure ingestion retry | Removed browser ad blocker; read-only Application Insights `traces` query | 56 `function-trace` rows observed: 28 start, 28 end, 28 duration values, and 6 parameter-bearing rows. Parameter capture was disabled again after confirming that raw identity data could be exported. |
 | 2026-11-10 | Safe policy consumer refresh | Reinstalled packed archive; focused telemetry tests; production build; authenticated Local Play; read-only Application Insights query | App tests passed (14/14 focused), lint/build passed, the canvas rendered, and Azure returned 52 recent function-trace rows. Four parameter-bearing rows contained only `context: 21`; no identity/comment values appeared. Local switch was disabled after the test. |
 | 2026-11-10 | Repository release setup | Public GitHub repository, MIT license, GitHub Actions CI, and tag-triggered release workflow | Repository published under `sakshamgupta912/react-telemetry-kit`; CI runs Node 20/22 checks and tagged releases attach the `.tgz` artifact. npm registry publishing remains disabled. |
+| 2026-11-23 | Browser telemetry extensions | `npm run check`; throwaway headless Edge smoke run against built `dist` | Type-check, lint, 60 tests in 9 files, and build passed. Smoke run captured page views, FCP/LCP/CLS/TTFB, page-load timing, fetch (200, 404, network error), XHR, a click, a function failure, an uncaught error, and an unhandled rejection with no leaked query, fragment, message, or label values. Not a cross-browser or backend-ingestion result. |
+| 2026-11-24 | Packed-archive consumer with browser page | `npm pack`; reinstall into `fixtures\react-vite`; `npm run check` there; installed `dist` hashes compared with the build | Type-check against the packaged types, production build, source-map check, and new browser-page assertions passed. Installed runtime and performance files match the current build. |
+| 2026-11-24 | Cross-engine verification | Playwright 1.64 (`playwright-core`, outside the repo) driving Chromium 156, Firefox 157, WebKit 27.2 against the production fixture build and a stand-in ingestion server on a second origin | 98 checks passed, 0 failed: pass-through of fetch/XHR results and errors, outcome classification, sanitized URLs, normalized routes, uncaught errors, function failures, envelope, page-view attribution, exactly-once delivery by `fetch` and `sendBeacon`, no query/fragment/message/label leakage, endpoint exclusion, and the feedback loop without it. Web Vitals matched each engine's supported entry types. WebKit is Playwright's Windows build, not Safari. |
+| 2026-11-24 | Page-hide ordering defect | Same harness with a visibility-only sink registered before the collectors and a tab-hide event | Reproduced in all three engines (LCP/CLS/INP missing at hide), fixed with capture-phase listeners on `window`, and confirmed green on all three plus a unit regression test. On navigation, `pagehide` fires before `visibilitychange`, so only the tab-hide path exposed it. |
+| 2026-11-24 | Overhead and size | `ab-benchmark` (HEAD vs current, 5 alternating rounds); in-page microbenchmarks in three engines; esbuild minify/gzip/brotli | Enabled function-tracing cost rose from about 0.31 to 0.48 µs per call after trimming the envelope cost (0.74 before); disabled path unchanged. Browser collectors add about 1 to 4 µs per click, 3 to 16 µs per fetch, and 27 to 137 µs per XHR with a no-op sink. Runtime 3.03 kB gzip, browser 5.05 kB gzip, together 7.02 kB. No budgets exist yet to compare against. |
 
 Tested local versions: Node 26.13.0, React/React DOM 18.3.1, Vite 7.3.7,
 TypeScript 5.9.3, Application Insights Web 3.4.6. Declared compatibility ranges

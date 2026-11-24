@@ -5,6 +5,13 @@ locally and in authenticated Local Play. Local-player Azure ingestion is
 verified; deployed-host pilots and release acceptance remain pending.
 Last updated: 2026-11-10
 
+> **Superseded 2026-11-24:** the package ships no vendor adapters. The
+> `/appinsights` and `/appinsights/initialize` entry points and the "optional
+> Application Insights initialization" scope below are removed; consumers bring
+> their own sink. Opt-in browser telemetry (`/browser`) was added. See
+> `PROJECT_MEMORY.md` for the current contract. The text below is the original
+> plan, kept for history.
+
 ## Objective
 
 Extract the function-tracing capability demonstrated in Mpower into an
