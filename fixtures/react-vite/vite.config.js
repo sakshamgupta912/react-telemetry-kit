@@ -5,7 +5,9 @@ import { functionTracing } from "react-telemetry-kit/vite";
 
 export default defineConfig({
   plugins: [
-    functionTracing({ exclude: (file) => file.endsWith("excluded.ts") }),
+    functionTracing({
+      exclude: (file) => file.endsWith("excluded.ts") || file.endsWith("telemetry-setup.ts"),
+    }),
     react(),
   ],
   build: {
@@ -13,7 +15,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: fileURLToPath(new URL("./index.html", import.meta.url)),
-        owned: fileURLToPath(new URL("./owned.html", import.meta.url)),
+        browser: fileURLToPath(new URL("./browser.html", import.meta.url)),
       },
     },
   },

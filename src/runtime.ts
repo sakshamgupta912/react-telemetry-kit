@@ -3,15 +3,16 @@ import {
   captureParameters,
   type ParameterCaptureRule,
 } from "./internal/capture-parameters.js";
+import { getPageViewId, getSessionId, nextSequence } from "./internal/context.js";
+import { createDiagnosticReporter } from "./internal/diagnostics.js";
+import { dispatch, isDispatching } from "./internal/dispatch.js";
+import type { FunctionTrace } from "./internal/events.js";
+import { matchesPattern, normalizePatterns, normalizeStrings } from "./internal/patterns.js";
+import { isSelected } from "./internal/sampling.js";
+import { errorTypeOf } from "./internal/sanitize.js";
+import { SDK_VERSION } from "./internal/version.js";
 
-export interface FunctionTrace {
-  phase: "start" | "end";
-  functionId: string;
-  functionName: string;
-  invocationId: string;
-  parameters?: string;
-  durationMs?: number;
-}
+export type { FunctionTrace } from "./internal/events.js";
 
 export interface FunctionTraceSink {
   track(trace: FunctionTrace): void;
@@ -64,6 +65,8 @@ interface TraceHandle {
   sink: FunctionTraceSink;
   onDiagnostic: RuntimeConfiguration["onDiagnostic"];
   ended: boolean;
+  failed: boolean;
+  errorType: string | undefined;
 }
 
 function defaultConfiguration(): RuntimeConfiguration {
@@ -84,40 +87,10 @@ function defaultConfiguration(): RuntimeConfiguration {
 }
 
 let configuration = defaultConfiguration();
-let dispatchDepth = 0;
-let diagnosticCount = 0;
 let invocationSequence = 0;
 const invocationPrefix = Math.random().toString(36).slice(2);
 const sampledFunctions = new Map<string, boolean>();
-
-function normalizeStrings(
-  values: readonly (string | null | undefined)[],
-  field: string,
-  lowercase = false,
-): string[] {
-  if (!Array.isArray(values)) throw new TypeError(`${field} must be an array`);
-  const result = new Set<string>();
-  for (const value of values) {
-    if (value == null) continue;
-    if (typeof value !== "string") {
-      throw new TypeError(`${field} must contain strings`);
-    }
-    const trimmed = value.trim();
-    if (trimmed) result.add(lowercase ? trimmed.toLowerCase() : trimmed);
-  }
-  return [...result];
-}
-
-function normalizePatterns(values: readonly string[], field: string): string[] {
-  const patterns = normalizeStrings(values, field);
-  for (const pattern of patterns) {
-    const core = pattern.replace(/^\*+|\*+$/g, "");
-    if (core.includes("*")) {
-      throw new TypeError(`${field} supports wildcards only at pattern edges`);
-    }
-  }
-  return patterns;
-}
+const diagnostics = createDiagnosticReporter<TraceDiagnostic>();
 
 function normalizeParameterPolicy(
   value: Readonly<Record<string, FunctionParameterPolicy>>,
@@ -221,18 +194,7 @@ export function configureFunctionTracing(update: FunctionTraceConfiguration): vo
 export function resetFunctionTracing(): void {
   configuration = defaultConfiguration();
   sampledFunctions.clear();
-  diagnosticCount = 0;
-}
-
-function matchesPattern(value: string, pattern: string): boolean {
-  const startsWithWildcard = pattern.startsWith("*");
-  const endsWithWildcard = pattern.endsWith("*");
-  const core = pattern.replace(/^\*+|\*+$/g, "");
-  if (!core) return true;
-  if (startsWithWildcard && endsWithWildcard) return value.includes(core);
-  if (startsWithWildcard) return value.endsWith(core);
-  if (endsWithWildcard) return value.startsWith(core);
-  return value === core;
+  diagnostics.reset();
 }
 
 function matchesFunction(
@@ -247,11 +209,7 @@ function isSampled(functionId: string, sampleRate: number): boolean {
   const cached = sampledFunctions.get(functionId);
   if (cached !== undefined) return cached;
 
-  let hash = 5381;
-  for (let index = 0; index < functionId.length; index++) {
-    hash = Math.imul(hash, 33) ^ functionId.charCodeAt(index);
-  }
-  const selected = sampleRate === 1 || (sampleRate > 0 && (hash >>> 0) / 0x100000000 < sampleRate);
+  const selected = isSelected(functionId, sampleRate);
   sampledFunctions.set(functionId, selected);
   return selected;
 }
@@ -292,26 +250,6 @@ function findParameterPolicy(
   return undefined;
 }
 
-function reportDiagnostic(
-  callback: RuntimeConfiguration["onDiagnostic"],
-  diagnostic: TraceDiagnostic,
-): void {
-  if (callback) {
-    try {
-      callback(diagnostic);
-      return;
-    } catch (error) {
-      console.warn("[react-telemetry-kit] Diagnostic callback failed", error);
-    }
-  }
-  if (diagnosticCount < 5) {
-    console.warn(`[react-telemetry-kit] ${diagnostic.code}`, diagnostic.error);
-  } else if (diagnosticCount === 5) {
-    console.warn("[react-telemetry-kit] Further telemetry diagnostics suppressed");
-  }
-  diagnosticCount++;
-}
-
 function now(): number {
   return typeof performance === "undefined" ? Date.now() : performance.now();
 }
@@ -322,22 +260,30 @@ export function traceFunctionStart(
   getParameters?: () => Record<string, unknown>,
 ): TraceHandle | null {
   const config = configuration;
-  if (dispatchDepth > 0 || !isAllowed(functionId, functionName, config) || !config.sink) {
+  if (isDispatching() || !isAllowed(functionId, functionName, config) || !config.sink) {
     return null;
   }
+  const sink = config.sink;
 
-  dispatchDepth++;
-  try {
+  return dispatch(() => {
     const handle: TraceHandle = {
       functionId,
       functionName,
       invocationId: `${invocationPrefix}-${++invocationSequence}`,
       startedAt: now(),
-      sink: config.sink,
+      sink,
       onDiagnostic: config.onDiagnostic,
       ended: false,
+      failed: false,
+      errorType: undefined,
     };
     const trace: FunctionTrace = {
+      type: "function",
+      timestamp: Date.now(),
+      sessionId: getSessionId(),
+      pageViewId: getPageViewId(),
+      sequence: nextSequence(),
+      sdkVersion: SDK_VERSION,
       phase: "start",
       functionId,
       functionName,
@@ -356,37 +302,50 @@ export function traceFunctionStart(
           trace.parameters = captureParameters(parameters, config.allowedParameters, config.redactedKeys);
         }
       } catch (error) {
-        reportDiagnostic(config.onDiagnostic, { code: "parameter-capture-failed", error });
+        diagnostics.report(config.onDiagnostic, { code: "parameter-capture-failed", error });
       }
     }
 
     try {
-      config.sink.track(trace);
+      sink.track(trace);
       return handle;
     } catch (error) {
-      reportDiagnostic(config.onDiagnostic, { code: "sink-failed", error });
+      diagnostics.report(config.onDiagnostic, { code: "sink-failed", error });
       return null;
     }
-  } finally {
-    dispatchDepth--;
-  }
+  });
+}
+
+/** Marks an invocation as failed. The generated wrapper rethrows the original error afterwards. */
+export function traceFunctionFailure(handle: TraceHandle | null, error: unknown): void {
+  if (!handle || handle.ended) return;
+  handle.failed = true;
+  handle.errorType = errorTypeOf(error);
 }
 
 export function traceFunctionEnd(handle: TraceHandle | null): void {
-  if (!handle || handle.ended || dispatchDepth > 0) return;
+  if (!handle || handle.ended || isDispatching()) return;
   handle.ended = true;
-  dispatchDepth++;
-  try {
-    handle.sink.track({
-      phase: "end",
-      functionId: handle.functionId,
-      functionName: handle.functionName,
-      invocationId: handle.invocationId,
-      durationMs: Math.max(0, now() - handle.startedAt),
-    });
-  } catch (error) {
-    reportDiagnostic(handle.onDiagnostic, { code: "sink-failed", error });
-  } finally {
-    dispatchDepth--;
-  }
+  dispatch(() => {
+    try {
+      const trace: FunctionTrace = {
+        type: "function",
+        timestamp: Date.now(),
+        sessionId: getSessionId(),
+        pageViewId: getPageViewId(),
+        sequence: nextSequence(),
+        sdkVersion: SDK_VERSION,
+        phase: "end",
+        functionId: handle.functionId,
+        functionName: handle.functionName,
+        invocationId: handle.invocationId,
+        durationMs: Math.max(0, now() - handle.startedAt),
+        outcome: handle.failed ? "threw" : "returned",
+      };
+      if (handle.errorType !== undefined) trace.errorType = handle.errorType;
+      handle.sink.track(trace);
+    } catch (error) {
+      diagnostics.report(handle.onDiagnostic, { code: "sink-failed", error });
+    }
+  });
 }

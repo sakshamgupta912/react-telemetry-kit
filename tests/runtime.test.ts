@@ -3,6 +3,7 @@ import {
   configureFunctionTracing,
   resetFunctionTracing,
   traceFunctionEnd,
+  traceFunctionFailure,
   traceFunctionStart,
   type FunctionTrace,
 } from "../src/runtime.js";
@@ -37,6 +38,27 @@ describe("function tracing runtime", () => {
     expect(traces[1]).toMatchObject({ phase: "end", functionName: "example" });
     expect(traces[1]?.invocationId).toBe(traces[0]?.invocationId);
     expect(traces[1]?.durationMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it("adds the shared envelope and reports failure outcomes without error messages", () => {
+    const traces: FunctionTrace[] = [];
+    configureFunctionTracing({ enabled: true, sink: { track: (trace) => traces.push(trace) } });
+
+    const failed = traceFunctionStart("src/example.ts:1:1:fails", "fails");
+    traceFunctionFailure(failed, new TypeError("secret message"));
+    traceFunctionEnd(failed);
+    const succeeded = traceFunctionStart("src/example.ts:2:1:works", "works");
+    traceFunctionEnd(succeeded);
+
+    expect(traces.map((trace) => trace.sequence)).toEqual([...traces.map((trace) => trace.sequence)].sort((a, b) => a - b));
+    expect(new Set(traces.map((trace) => trace.sessionId)).size).toBe(1);
+    expect(traces[0]).toMatchObject({ type: "function", phase: "start", sdkVersion: expect.any(String) });
+    expect(traces[0]?.pageViewId).toEqual(expect.any(String));
+    expect(traces[0]?.timestamp).toBeGreaterThan(0);
+    expect(traces[1]).toMatchObject({ phase: "end", outcome: "threw", errorType: "TypeError" });
+    expect(traces[3]).toMatchObject({ phase: "end", outcome: "returned" });
+    expect(traces[3]).not.toHaveProperty("errorType");
+    expect(JSON.stringify(traces)).not.toContain("secret message");
   });
 
   it("filters by normalized target users and function patterns", () => {

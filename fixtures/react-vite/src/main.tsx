@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { createApplicationInsightsSink } from "react-telemetry-kit/appinsights";
-import { configureFunctionTracing } from "react-telemetry-kit/runtime";
+import { configureFunctionTracing, type FunctionTrace } from "react-telemetry-kit/runtime";
 import { excludedFeature } from "./excluded";
 
 interface ReceivedTrace {
@@ -10,15 +9,25 @@ interface ReceivedTrace {
 }
 
 const received: ReceivedTrace[] = [];
-const existingClient = {
-  trackTrace(telemetry: { message: string }, properties: Record<string, string> = {}) {
-    received.push({ message: telemetry.message, properties });
+const sink = {
+  track(trace: FunctionTrace) {
+    received.push({
+      message: `Function ${trace.phase}: ${trace.functionName}`,
+      properties: {
+        eventCategory: "function-trace",
+        tracePhase: trace.phase,
+        functionId: trace.functionId,
+        functionName: trace.functionName,
+        invocationId: trace.invocationId,
+        ...(trace.parameters === undefined ? {} : { parameters: trace.parameters }),
+      },
+    });
   },
 };
 
 configureFunctionTracing({
   enabled: true,
-  sink: createApplicationInsightsSink(existingClient),
+  sink,
   includeParams: true,
   allowedParameters: ["value"],
 });

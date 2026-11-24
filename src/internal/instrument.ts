@@ -164,6 +164,8 @@ export function instrumentSource(code: string, relativePath: string): Instrument
 
   const startIdentifier = uniqueIdentifier("__rtkStart");
   const endIdentifier = uniqueIdentifier("__rtkEnd");
+  const failIdentifier = uniqueIdentifier("__rtkFail");
+  const errorIdentifier = uniqueIdentifier("__rtkError");
   const insertions: Insertion[] = [];
 
   function visit(node: ts.Node, depth: number): void {
@@ -180,6 +182,7 @@ export function instrumentSource(code: string, relativePath: string): Instrument
       const functionId = `${relativePath}:${position.line + 1}:${position.character + 1}:${name}`;
       const handle = uniqueIdentifier("__rtkInvocation");
       const startCall = `${startIdentifier}(${JSON.stringify(functionId)},${JSON.stringify(name)}${parameterFactory(node)})`;
+      const recover = `catch(${errorIdentifier}){${failIdentifier}(${handle},${errorIdentifier});throw ${errorIdentifier};}finally{${endIdentifier}(${handle});}`;
 
       if (ts.isBlock(body)) {
         insertions.push({
@@ -190,7 +193,7 @@ export function instrumentSource(code: string, relativePath: string): Instrument
         });
         insertions.push({
           position: body.getEnd() - 1,
-          text: `\n}finally{${endIdentifier}(${handle});}\n`,
+          text: `\n}${recover}\n`,
           kind: "close",
           depth,
         });
@@ -203,7 +206,7 @@ export function instrumentSource(code: string, relativePath: string): Instrument
         });
         insertions.push({
           position: body.getEnd(),
-          text: `);}finally{${endIdentifier}(${handle});}}`,
+          text: `);}${recover}}`,
           kind: "close",
           depth,
         });
@@ -216,7 +219,7 @@ export function instrumentSource(code: string, relativePath: string): Instrument
 
   insertions.push({
     position: code.length,
-    text: `\n;import {traceFunctionStart as ${startIdentifier},traceFunctionEnd as ${endIdentifier}} from "react-telemetry-kit/runtime";\n`,
+    text: `\n;import {traceFunctionStart as ${startIdentifier},traceFunctionEnd as ${endIdentifier},traceFunctionFailure as ${failIdentifier}} from "react-telemetry-kit/runtime";\n`,
     kind: "import",
     depth: 0,
   });

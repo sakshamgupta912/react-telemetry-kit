@@ -105,6 +105,48 @@ describe("function instrumentation", () => {
     await expect(asyncResult).resolves.toBe("done");
   });
 
+  it("records failures for sync throws, arrows, and async rejections and rethrows the original value", async () => {
+    const source = `
+      export function fail(value: unknown) { throw value; }
+      export const arrow = () => { throw new RangeError("private detail"); };
+      export async function reject(value: unknown) { await Promise.resolve(); throw value; }
+      export function succeed() { return 1; }
+    `;
+    type Example = {
+      fail(value: unknown): never;
+      arrow(): never;
+      reject(value: unknown): Promise<never>;
+      succeed(): number;
+    };
+    const traces: FunctionTrace[] = [];
+    runtime.configureFunctionTracing({ enabled: true, sink: { track: (trace) => traces.push(trace) } });
+    const wrapped = execute<Example>(instrument(source));
+    const ends = () => traces.filter((trace) => trace.phase === "end");
+    const thrown = new TypeError("secret");
+
+    let caught: unknown;
+    try {
+      wrapped.fail(thrown);
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBe(thrown);
+    expect(() => wrapped.arrow()).toThrow("private detail");
+
+    const pending = wrapped.reject(thrown);
+    expect(ends()).toHaveLength(2);
+    await expect(pending).rejects.toBe(thrown);
+    expect(wrapped.succeed()).toBe(1);
+
+    expect(ends().map((trace) => [trace.functionName, trace.outcome, trace.errorType])).toEqual([
+      ["fail", "threw", "TypeError"],
+      ["arrow", "threw", "RangeError"],
+      ["reject", "threw", "TypeError"],
+      ["succeed", "returned", undefined],
+    ]);
+    expect(JSON.stringify(traces)).not.toContain("private detail");
+  });
+
   it("handles nested concise arrow expressions and generated-name collisions", () => {
     const source = `
       const __rtkStart = 2;
