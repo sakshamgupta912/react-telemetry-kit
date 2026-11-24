@@ -38,6 +38,11 @@ for 0.1.0 consumers; see **Migrating from 0.1.0**.
 
 ### Changed
 
+- The `vite` peer dependency is now `^7.0.0 || ^8.0.0`. A fresh `create-vite`
+  app ships Vite 8, and `^7.0.0` made `npm install` fail with `ERESOLVE`
+  there. The test suite now runs the plugin's dev-server transforms and a
+  production build with both Vite 7.3 and Vite 8.3, executes the bundles, and
+  type-checks the plugin against both versions' `Plugin` types.
 - `FunctionTrace` now includes the envelope fields and `type: "function"`.
   Sinks that read the 0.1.0 fields keep working. Code that builds
   `FunctionTrace` objects, such as test doubles, must add the new fields.
@@ -71,7 +76,7 @@ the vendor SDK also auto-collects.
   build). Safari on macOS and iOS and real mobile browsers are untested.
 - Delivery was tested only against a stand-in ingestion server, not a vendor
   backend. No `traceparent` propagation or parent/child spans are provided.
-- Function tracing requires Vite 7. The browser collectors work with any
+- Function tracing requires Vite 7 or 8. The browser collectors work with any
   bundler. Output is ESM only.
 - No performance or size budgets have been agreed.
 - The package remains `private: true` and is installed from GitHub or a local

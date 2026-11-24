@@ -276,6 +276,12 @@ Dataverse create/delete was performed.
 - Found during smoke testing: browsers run microtasks between listeners, so an
   XHR `loadend` listener can run after the app has already navigated. API
   events therefore capture the page-view ID when the request starts.
+- Fresh-install lesson (2026-11-24): `create-vite@latest` now scaffolds Vite 8,
+  React 19, and TypeScript 7, so the old `vite ^7.0.0` peer made installs fail
+  with `ERESOLVE`. The peer is `^7.0.0 || ^8.0.0`, and `vite8` (an npm alias to
+  Vite 8) is a dev dependency so tests exercise both. Re-check the scaffold's
+  Vite major whenever it changes; a fresh-app install is the quickest compat
+  test.
 - Still open: real Safari (macOS/iOS) and mobile browsers; delivery to a real
   telemetry backend with a non-production connection string; agreed
   performance and bundle budgets.

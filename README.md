@@ -14,17 +14,80 @@ validation remain pending.
 
 ## Requirements
 
-The initial supported environment is:
-
-- Vite 7
+- Vite 7 or 8 (the build-time function tracing plugin). The repository's tests
+  build and run instrumented code with Vite 7.3 and Vite 8.3.
 - Node.js `^20.19.0 || >=22.12.0`
 - A browser application using `.js`, `.jsx`, `.ts`, or `.tsx`
 - React is expected for the primary use case, but the runtime is independent
-  of React
+  of React. The browser collectors (`react-telemetry-kit/browser`) do not need
+  Vite and work with any bundler.
 
 The package's development checks use TypeScript 5.9 and React 18. The Power
-Apps pilot also validated React 19. Other versions require compatibility
-testing.
+Apps pilot also validated React 19, and a fresh Vite 8, React 19, and
+TypeScript 7 app was built and run in Chromium. Other versions require
+compatibility testing.
+
+## Quick start
+
+Three small edits to a Vite React app. This sends everything to the browser
+console; replace the sink with your own adapter for a real backend (see
+[Bring your own adapter](#3-bring-your-own-adapter)).
+
+1. Install:
+
+   ```powershell
+   npm install github:sakshamgupta912/react-telemetry-kit
+   ```
+
+2. Add the plugin before the React plugin in `vite.config.ts`:
+
+   ```ts
+   import { functionTracing } from "react-telemetry-kit/vite";
+
+   export default defineConfig({
+     plugins: [functionTracing(), react()],
+   });
+   ```
+
+3. Create `src/telemetry.ts` and import it first in `src/main.tsx`
+   (`import "./telemetry";`):
+
+   ```ts
+   import { configureBrowserTelemetry, type TelemetryEvent } from "react-telemetry-kit/browser";
+   import { configureFunctionTracing } from "react-telemetry-kit/runtime";
+
+   const sink = {
+     track(event: TelemetryEvent) {
+       console.log("[telemetry]", event);
+     },
+   };
+
+   configureFunctionTracing({ enabled: true, sink });
+   configureBrowserTelemetry({
+     enabled: true,
+     sink,
+     errors: true,
+     pageViews: true,
+     performance: true,
+     apiCalls: true,
+     clicks: true,
+   });
+   ```
+
+You then get function start/end traces for your own source files, page views
+(including client-side navigation), uncaught errors, API call timing, page-load
+timing, and Core Web Vitals. A few things are deliberate:
+
+- Clicks are reported only for elements with a `data-telemetry-id` attribute.
+- `LCP`, `CLS`, and `INP` are final only when the page is hidden, so they
+  appear when the tab is hidden or closed, not during normal use. `INP` is
+  reported only if an interaction took 40 ms or longer.
+- Function tracing wraps every function in your source, which is noisy and has
+  overhead. Narrow it with `targetFunctions`, `excludedFunctions`, or
+  `sampleRate`, and enable it only where you need it.
+- A real backend needs your adapter's endpoint excluded from `apiCalls`
+  (`excludeUrls`) and normalized route paths (`normalizePath`) so IDs in URLs
+  do not create a page per user.
 
 ## License
 

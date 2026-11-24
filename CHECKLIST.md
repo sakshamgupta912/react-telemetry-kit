@@ -70,6 +70,7 @@ Requested 2026-11-23. Opt-in collectors behind `react-telemetry-kit/browser`.
 - [x] Fix the page-hide ordering hazard found in that run (vitals stranded behind a visibility-only sink); capture-phase listeners plus a regression test.
 - [x] Measure collector overhead (per operation, three engines), function-wrapper A/B against `HEAD`, and bundle size. See README "Measured cost". The disabled path is unchanged.
 - [x] Verify delivery to a local stand-in ingestion server on a separate origin: batched `fetch` (JSON) and `sendBeacon` (text/plain) both arrive, the endpoint exclusion works, and omitting it reproduces the feedback loop.
+- [x] Fresh-install test (2026-11-24): `create-vite@latest` scaffolds Vite 8.3, React 19.3, TypeScript 7.0; installing the package failed with `ERESOLVE` because of the `vite ^7.0.0` peer. Widened the peer to `^7.0.0 || ^8.0.0`; the plugin tests now cover Vite 7.3 and 8.3 (dev-server transform, production build, executed bundle). A Quick start was added to the README.
 - [ ] Verify in Safari on macOS and iOS and on real mobile browsers. WebKit here is Playwright's Windows build.
 - [ ] Verify delivery to a real telemetry backend (for example Application Insights) with a non-production connection string and its CSP/network rules.
 - [ ] Agree on measurable performance and bundle-size budgets (Phase 1) and compare these measurements against them.
